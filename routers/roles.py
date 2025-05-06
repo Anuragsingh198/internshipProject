@@ -8,7 +8,6 @@ from uuid import UUID
 
 router = APIRouter(prefix="/roles", tags=["Roles"])
 
-
 def get_db():
     db = SessionLocal()
     try:

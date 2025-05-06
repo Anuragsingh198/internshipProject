@@ -46,6 +46,7 @@ class ManagerOut(BaseModel):
 
 
 class LoginResponse(BaseModel):
+    status:str
     user: UserOut
     projects: List[projects.ProjectDetailsOut]
     access_token: str
@@ -60,6 +61,11 @@ class Managers(BaseModel):
     class Config:
         orm_mode = True
 
+class AllUsers(BaseModel):
+    allusers: List[ManagerOut]  
+    class Config:
+        orm_mode = True
+
 class ResteData(BaseModel):
     email:str
     password:str
@@ -69,11 +75,12 @@ class ResteData(BaseModel):
 
 
 
-
-class ApproveUserRequest(BaseModel):
-    user_id: UUID       
-    employee_id: UUID   
-    project_id: UUID     
+class AdminApprovalRequest(BaseModel):
+    details_id: UUID
+    admin_id: UUID
+    admin_approved: bool
+    remark: Optional[str] = ""
+   
 
 class ProjectDetailResponse(BaseModel):
     details_id: UUID
