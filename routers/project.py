@@ -5,11 +5,11 @@ from models import projects as project_models , users as users_model , roles as 
 from sqlalchemy.exc import IntegrityError
 from schemas import projects as projects_schemas
 from uuid import UUID
+import uuid
 from  typing import  Optional 
 from datetime import datetime
 router = APIRouter(prefix="/projects", tags=["Projects"])
-
-
+from models.projects import ProjectDetailsStatusEnum , ProjectStatusEnum
 
 def get_db():
     db = SessionLocal()
@@ -18,12 +18,63 @@ def get_db():
     finally:
         db.close()
 
+
+@router.post("/addNewProject" , response_model=projects_schemas.AddProjectResponse)
+def create_new_project(payload: projects_schemas.AddNewProjects, db: Session = Depends(get_db)):
+    new_project = project_models.Project(
+        project_id=uuid.uuid4(),
+        project_name=payload.project_name,
+        project_description=payload.project_description,
+        project_owner=payload.project_owner,
+        project_status=payload.project_status,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        DA=payload.DA,
+        AF=payload.AF,
+        EA=payload.EA,
+        DI=payload.DI,
+    )
+
+    db.add(new_project)
+    db.commit()
+    db.refresh(new_project)
+    return {
+        "message": "Project created successfully!",
+    }
+
 @router.get("/", response_model=projects_schemas.AllProjectsOut)
 def get_all_projects(db: Session = Depends(get_db)):
-    all_projects = db.query(project_models.Project).all()
+    all_projects = db.query(
+        project_models.Project,
+        users_model.User.first_name,
+        users_model.User.last_name
+    ).join(
+        users_model.User, project_models.Project.project_owner == users_model.User.id
+    ).all()
+
     if not all_projects:
         raise HTTPException(status_code=404, detail="Projects not found")
-    return {"projects": all_projects}
+
+    projects_out = []
+    for project, first_name, last_name in all_projects:
+        projects_out.append({
+            "project_id": project.project_id,
+            "project_name": project.project_name,
+            "project_description": project.project_description,
+            "project_owner": project.project_owner,
+            "manager_firstname": first_name,
+            "manager_lastname": last_name,
+            "project_status": project.project_status,
+            "DA": project.DA,
+            "AF": project.AF,
+            "EA": project.EA,
+            "DI": project.DI,
+            "start_date": project.start_date,
+            "end_date": project.end_date
+        })
+
+    return {"projects": projects_out}
+
 
 
 @router.patch("/update/{detail_id}", response_model=projects_schemas.ProjectDetailsOut)
@@ -50,6 +101,8 @@ def update_project_detail(
     db.refresh(detail_obj)
     return detail_obj
 
+
+
 @router.post("/addNewProjectToUser", response_model=dict)
 def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: Session = Depends(get_db)):
 
@@ -71,15 +124,26 @@ def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: 
     project = db.query(project_models.Project).filter(project_models.Project.project_id == payload.project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
+    if not isinstance(payload.status, ProjectStatusEnum):
+        try:
+            payload.status = ProjectStatusEnum(payload.status)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid status enum.")
 
+    if not isinstance(payload.admin_approved, ProjectDetailsStatusEnum):
+        try:
+            payload.admin_approved = ProjectDetailsStatusEnum(payload.admin_approved)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid admin approval status.")
+        
     new_detail = project_models.ProjectDetail(
         project_id=payload.project_id,
         employee_id=user.id,
         role_id=payload.role_id,
-        status=payload.status,
+        status=ProjectStatusEnum(payload.status),
         manager_approved=payload.manager_approved,
         approved_manager=payload.approved_manager,
-        admin_approved=payload.admin_approved,
+        admin_approved=ProjectDetailsStatusEnum(payload.admin_approved),
         last_edited_on=datetime.utcnow(),
         last_edited_by=payload.approved_manager,
     )
@@ -93,6 +157,7 @@ def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: 
         "project_details": {
             "details_id": new_detail.details_id,
             "project_id": new_detail.project_id,
+            "project_name":project.project_name,
             "user_id": user.id,
             "employee_id": user.emp_id,
             "employee_firstname": user.first_name,
@@ -111,27 +176,36 @@ def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: 
             "last_edited_by": new_detail.last_edited_by,
         }
     }
-
     return response
-
-
-
-    
-    
-
-
 
 
 @router.put("/delete-project/{project_id}")
 def delete_project(project_id: UUID, db: Session = Depends(get_db)):
+    project = db.query(project_models.Project).filter_by(project_id=project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
     project_details = db.query(project_models.ProjectDetail).filter_by(project_id=project_id).all()
     if not project_details:
         raise HTTPException(status_code=404, detail="No project details found for this project")
 
+    project.project_status = "dropped"
+
+
     for detail in project_details:
         detail.status = "Dropped"
         detail.last_edited_on = datetime.utcnow()
+
+        history = project_models.ProjectHistory(
+            project_id=project_id,
+            employee_id=project.project_owner,
+            role_id=detail.role_id,
+            start_date=project.start_date ,
+            end_date=datetime.utcnow()
+        )
+        db.add(history)
     db.commit()
-    return {"detail": "All related project details marked as Dropped"}
+    return {"detail": "Project marked as dropped, all related details updated, and history recorded"}
+
 
 

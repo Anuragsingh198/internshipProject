@@ -78,7 +78,7 @@ class ResteData(BaseModel):
 class AdminApprovalRequest(BaseModel):
     details_id: UUID
     admin_id: UUID
-    admin_approved: bool
+    admin_approved: str
     remark: Optional[str] = ""
    
 
@@ -89,7 +89,7 @@ class ProjectDetailResponse(BaseModel):
     role_id: UUID
     status: str
     manager_approved: bool
-    admin_approved: bool
+    admin_approved: str
     approved_manager: UUID | None
     last_edited_on: datetime | None
     last_edited_by: UUID | None

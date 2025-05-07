@@ -7,13 +7,21 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from core.database import Base
+from sqlalchemy import Enum as SQLAlchemyEnum
 
 
-class ProjectStatusEnum(enum.Enum):
+import enum
+class ProjectStatusEnum(str, enum.Enum):
     ongoing = "ongoing"
     completed = "completed"
     hold = "hold"
     dropped = "dropped"
+
+class ProjectDetailsStatusEnum(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
 
 
 class Project(Base):
@@ -23,7 +31,7 @@ class Project(Base):
     project_name = Column(String, index=True, nullable=False)
     project_description = Column(String)
     project_owner = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    project_status = Column(Enum(ProjectStatusEnum), nullable=False)
+    project_status = Column(String, default="ongoing", nullable=False)
 
     DA = Column(Boolean, default=False)
     AF = Column(Boolean, default=False)
@@ -37,6 +45,7 @@ class Project(Base):
     history = relationship("ProjectHistory", back_populates="project")
 
 
+
 class ProjectDetail(Base):
     __tablename__ = "project_details"
 
@@ -45,14 +54,14 @@ class ProjectDetail(Base):
     employee_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     role_id = Column(UUID(as_uuid=True), ForeignKey("roles.role_id"), nullable=False)
 
-    status = Column(String)
+    status = Column(String, default="ongoing", nullable=False)
     manager_approved = Column(Boolean, default=False)
     approved_manager = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    admin_approved = Column(Boolean, default=False)
 
+    admin_approved = Column(String, default="pending", nullable=False)
     last_edited_on = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_edited_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    remark=Column(String)
+    remark = Column(String)
 
     project = relationship("Project", back_populates="details")
     employee = relationship("User", foreign_keys=[employee_id])

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from core.database import SessionLocal
 from models import users as user_models, projects 
 from models.roles import Role
-from schemas import users as user_schemas , projects as project_scjemas
+from schemas import users as user_schemas , projects as project_scjemas , otp as otp_schemas
 from sqlalchemy.exc import IntegrityError
 import hashlib
 from auth.jwthandler import create_access_token
@@ -11,8 +11,9 @@ from datetime import timedelta
 from uuid import UUID
 import uuid
 from datetime import datetime
-
+from emailInti.SendEmail import send_email
 from utils.hash import hash_password , verify_password
+import random
 router = APIRouter(prefix="/users", tags=["Users"])
 
 def get_db():
@@ -24,8 +25,10 @@ def get_db():
 
 
 
+
 @router.post("/signup", response_model=dict)
 def signup(user_data: user_schemas.UserCreate, db: Session = Depends(get_db)):
+
     existing_user = db.query(user_models.User).filter(
         (user_models.User.email == user_data.email) | (user_models.User.emp_id == user_data.emp_id)
     ).first()
@@ -52,7 +55,7 @@ def signup(user_data: user_schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     access_token = create_access_token(data={"sub": str(new_user.id)})
-
+    send_email(recipient_email="anuragsingh.bisen@ielektron.com" , status="pending" , description="Your account has been created")
     return {
         "detail": "User created successfully",
         "access_token": access_token,
@@ -86,6 +89,7 @@ def login_user(email: str, password: str, db: Session = Depends(get_db)):
     }
 @router.get('/getAllUsers', response_model=user_schemas.AllUsers)
 def getusers(db: Session = Depends(get_db)):
+    send_status_email(recipient_email="anuragsingh.bisen@ielektron.com" , status="pending" , description="Your account has been created")
     allUsers_obj = db.query(user_models.User).filter(
         (user_models.User.is_manager == False) & 
         (user_models.User.is_admin == False)
@@ -137,8 +141,8 @@ def reset_user_password(email:str, newpassword:str, db:Session =  Depends(get_db
 
     if not  user_obj:
         raise HTTPException(status_code=404, detail="User not found")
-    # hashed_password = hashlib.sha256(payload.new_password.encode()).hexdigest()
-    # user_obj.password = hashed_password
+    hashed_password = hashlib.sha256(newpassword.encode()).hexdigest()
+    user_obj.password = hashed_password
     user_obj.password = newpassword
     db.commit()
     db.refresh(user_obj)
@@ -150,12 +154,10 @@ def get_Approved_users(user_id: UUID, db: Session = Depends(get_db)):
     if not manageroradmin:
         raise HTTPException(status_code=404, detail="Current user not found")
 
-    # Base query: only fully approved projects
     approved_projects = db.query(projects.ProjectDetail).filter(
         projects.ProjectDetail.manager_approved == True,
-        projects.ProjectDetail.admin_approved == True
+        projects.ProjectDetail.admin_approved == "approved"
     )
-
     if manageroradmin.is_manager:
         approved_projects = approved_projects.filter(
             projects.ProjectDetail.approved_manager == user_id
@@ -168,13 +170,14 @@ def get_Approved_users(user_id: UUID, db: Session = Depends(get_db)):
         one_user = db.query(user_models.User).filter(user_models.User.id == proj.employee_id).first()
         one_role = db.query(Role).filter(Role.role_id == proj.role_id).first()
         approved_manager = db.query(user_models.User).filter(user_models.User.id == proj.approved_manager).first()
-
+        projectsdata = db.query(projects.Project).filter(projects.Project.project_id == proj.project_id).first()
         if one_user and one_role and approved_manager:
             outOneProject = {
                 "details_id": proj.details_id,
                 "project_id": proj.project_id,
                 "user_id": one_user.id,
                 "employee_id": one_user.emp_id,
+                "project_name":projectsdata.project_name,
                 "employee_firstname": one_user.first_name,
                 "employee_lastname": one_user.last_name,
                 "employee_email": one_user.email,
@@ -196,32 +199,33 @@ def get_Approved_users(user_id: UUID, db: Session = Depends(get_db)):
 
 @router.get("/notApproved/new-user-request/{user_id}", response_model=project_scjemas.allProjectOut)
 def get_notApproved_users(user_id: UUID, db: Session = Depends(get_db)):
-    manageroradmin = db.query(user_models.User).filter(user_models.User.id == user_id).first()
-    if not manageroradmin:
+    user = db.query(user_models.User).filter(user_models.User.id == user_id).first()
+    if not user:
         raise HTTPException(status_code=404, detail="Current user not found")
 
     notApproved_projects = db.query(projects.ProjectDetail).filter(
         projects.ProjectDetail.manager_approved == True,
-        projects.ProjectDetail.admin_approved == False
+        projects.ProjectDetail.admin_approved.in_(["Pending", "Rejected"])
     )
 
-    if manageroradmin.is_manager:
+    if user.is_manager:
         notApproved_projects = notApproved_projects.filter(
             projects.ProjectDetail.approved_manager == user_id
-        )
-
-    notApproved_projects = notApproved_projects.all()
+        ).all()
+    else:
+        notApproved_projects = notApproved_projects.all()
 
     allProjectsout = []
     for proj in notApproved_projects:
         one_user = db.query(user_models.User).filter(user_models.User.id == proj.employee_id).first()
         one_role = db.query(Role).filter(Role.role_id == proj.role_id).first()
         approved_manager = db.query(user_models.User).filter(user_models.User.id == proj.approved_manager).first()
-
+        projectsdata = db.query(projects.Project).filter(projects.Project.project_id == proj.project_id).first()
         if one_user and one_role and approved_manager:
             outOneProject = {
                 "details_id": proj.details_id,
                 "project_id": proj.project_id,
+                "project_name":projectsdata.project_name,
                 "user_id": one_user.id,
                 "employee_id": one_user.emp_id,
                 "employee_firstname": one_user.first_name,
@@ -242,6 +246,7 @@ def get_notApproved_users(user_id: UUID, db: Session = Depends(get_db)):
             allProjectsout.append(outOneProject)
 
     return {"allProjects": allProjectsout}
+
 
 
 
@@ -275,11 +280,6 @@ def get_notApproved_users(user_id: UUID, db: Session = Depends(get_db)):
 #     return {"detail": "User approved by manager"}
 
 
-from fastapi import Depends, APIRouter, HTTPException, Path
-from sqlalchemy.orm import Session
-from datetime import datetime
-from uuid import UUID
-
 @router.patch("/admin/approve-user")
 def approve_user_by_admin(
     data: user_schemas.AdminApprovalRequest,
@@ -311,4 +311,6 @@ def approve_user_by_admin(
     if data.admin_approved:
         return {"detail": "User has been approved by admin"}
     else:
-        return {"detail": "Admin rejected the user/project", "remark": data.remark}
+        return {"detail": "Admin Suspend the user/project", "remark": data.remark}
+
+

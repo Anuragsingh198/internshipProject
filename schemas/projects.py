@@ -3,13 +3,17 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import date, datetime
 
-# ProjectOut schema
+from models.projects import ProjectStatusEnum , ProjectDetailsStatusEnum
+from enum import Enum
+
 class ProjectOut(BaseModel):
     project_id: UUID
     project_name: str
     project_description: Optional[str]
     project_owner: UUID
-    project_status: Optional[str]
+    manager_firstname: str
+    manager_lastname: str
+    project_status: str
     DA: bool
     AF: bool
     EA: bool
@@ -20,50 +24,46 @@ class ProjectOut(BaseModel):
     class Config:
         orm_mode = True
 
-# ProjectDetailOut schema
 class ProjectDetailsOut(BaseModel):
     details_id: UUID
     project_id: UUID
     user_id: UUID
-    employee_id:str
-    employee_firstname:str
-    employee_lastname:str
-    employee_email : EmailStr
+    project_name:str
+    employee_id: str
+    employee_firstname: str
+    employee_lastname: str
+    employee_email: EmailStr
     role_id: UUID
-    role_name:str
+    role_name: str
     status: str
-    manager_approved:Optional[bool]=True
+    manager_approved: bool
     approved_manager: UUID
-    manager_name:str
-    manager_email:EmailStr
-    admin_approved: Optional[bool]=False
-    remark:Optional[str]=""
+    manager_name: str
+    manager_email: EmailStr
+    admin_approved: str 
+    remark: Optional[str] = ""
     last_edited_on: datetime
     last_edited_by: UUID
 
     class Config:
         orm_mode = True
 
-
-
 class  allProjectOut(BaseModel):
     allProjects:List[ProjectDetailsOut]
     class Config:
         orm_mode=True
 
-# AllprojectsOut schema
 class AllProjectsOut(BaseModel):
     projects: List[ProjectOut]
 
     class Config:
         orm_mode = True
 
-# ProjectUpdate schema
 class ProjectDetailUpdate(BaseModel):
     status: Optional[str]
     manager_approved: Optional[bool]
     approved_manager: Optional[UUID]
-    admin_approved: Optional[bool]
+    admin_approved: Optional[str]
     role_id: Optional[UUID]
     employee_id: Optional[UUID]
     class Config:
@@ -80,7 +80,23 @@ class AddNewUserToProjects(BaseModel):
     status: str
     manager_approved: bool 
     approved_manager: UUID
-    admin_approved: bool
+    admin_approved: str
     class Config:
         orm_mode = True
 
+class AddNewProjects(BaseModel):
+    project_name: str
+    project_description: Optional[str]
+    project_owner: UUID
+    project_status:Optional[str] = "ongoing"
+    start_date: Optional[date]
+    end_date: Optional[date]
+    DA: bool
+    AF: bool
+    EA: bool
+    DI: bool
+    class Config:
+        orm_mode = True
+
+class AddProjectResponse(BaseModel):
+    message:str
