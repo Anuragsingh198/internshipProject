@@ -11,7 +11,7 @@ from datetime import timedelta
 from uuid import UUID
 import uuid
 from datetime import datetime
-from emailInti.SendEmail import send_email
+from SendEmail import send_email
 from utils.hash import hash_password , verify_password
 import random
 router = APIRouter(prefix="/users", tags=["Users"])

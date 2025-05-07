@@ -1,21 +1,17 @@
 import msal
 import requests
-import os
-from dotenv import load_dotenv
 from utils.email_templates import generate_email_body
-
+from dotenv import load_dotenv
+from pathlib import Path
+import os
 load_dotenv()
 
-# Load environment variables
-# CLIENT_ID = os.getenv("CLIENT_ID")
-# CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-# TENANT_ID = os.getenv("TENANT_ID")
-
-CLIENT_ID = "7aaaf0f1-7c37-424e-a9ed-397f9df6d375"
-TENANT_ID = "6eaadc6a-a688-4ff0-abb3-772fb62d75e1"
-CLIENT_SECRET = "lLg8Q~Elq7LB~Ic.est7eVsgNk3fL7mkrs5gGcdC"
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+TENANT_ID = os.getenv("TENANT_ID")
 
 print(TENANT_ID , CLIENT_ID , CLIENT_SECRET)
+
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 SCOPE = ["https://graph.microsoft.com/.default"]
 SENDER_EMAIL = "technical_user@ielektron.com"  

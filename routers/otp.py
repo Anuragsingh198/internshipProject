@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from core.database import SessionLocal
 from schemas.otp import OTPRequest, OTPResponse, OTPVerifyRequest, OTPVerifyResponse
 from utils.generate_otp import generate_otp 
-from  emailInti.SendEmail import send_email
+from  SendEmail import send_email
 router = APIRouter(prefix="/otp", tags=["otp"])
 
 
