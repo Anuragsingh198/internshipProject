@@ -9,13 +9,11 @@ load_dotenv()
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 TENANT_ID = os.getenv("TENANT_ID")
-
-print(TENANT_ID , CLIENT_ID , CLIENT_SECRET)
+SCOPE = os.getenv("SCOPE")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-SCOPE = ["https://graph.microsoft.com/.default"]
-SENDER_EMAIL = "technical_user@ielektron.com"  
-
+print(CLIENT_ID , TENANT_ID , AUTHORITY , "tfewvybuinrmubyvbhivwnfebhfjnqknoejiwbhvu")
 
 app = msal.ConfidentialClientApplication(
     client_id=CLIENT_ID,
