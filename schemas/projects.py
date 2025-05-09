@@ -24,6 +24,9 @@ class ProjectOut(BaseModel):
     class Config:
         orm_mode = True
 
+
+
+
 class ProjectDetailsOut(BaseModel):
     details_id: UUID
     project_id: UUID
@@ -77,7 +80,7 @@ class AddNewUserToProjects(BaseModel):
     employee_lastname:str
     employee_email : EmailStr
     role_id: UUID
-    status: str
+    status: Optional[str] = "ongoing"
     manager_approved: bool 
     approved_manager: UUID
     admin_approved: str
@@ -100,3 +103,15 @@ class AddNewProjects(BaseModel):
 
 class AddProjectResponse(BaseModel):
     message:str
+
+
+class ProjectUpdate(BaseModel):
+    project_name:        Optional[str] = None
+    project_description: Optional[str] = None
+    project_status:      Optional[str] = None
+    project_owner:       Optional[UUID] = None
+    start_date:          Optional[date] = None
+    end_date:            Optional[date] = None
+
+    class Config:
+        orm_mode = True

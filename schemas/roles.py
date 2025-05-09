@@ -1,22 +1,32 @@
-from typing import Optional
-from uuid import UUID
-from datetime import date
-from  typing import  List
 from pydantic import BaseModel
+from uuid import UUID
+from typing import Optional, List
 
-class RoleOut(BaseModel):
-    role_id: UUID
+
+class CreateRole(BaseModel):
     role_name: str
+    role_description: Optional[str] = None
 
     class Config:
         orm_mode = True
 
-class  Allroles(BaseModel):
-    roles:List[RoleOut]
+class RoleOut(BaseModel):
+    role_id: UUID
+    role_name: str
+    role_description: str
+
     class Config:
-          orm_mode = True
+        orm_mode = True
 
 class RoleData(BaseModel):
-     role_name : str
-     class Config:
-          orm_mode = True
+    role_name: Optional[str] = None
+    role_description: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+class AllRoles(BaseModel):
+    roles: List[RoleOut]
+
+    class Config:
+        orm_mode = True

@@ -1,73 +1,80 @@
 import msal
 import requests
-from utils.email_templates import generate_email_body
 from dotenv import load_dotenv
-from pathlib import Path
 import os
+
 load_dotenv()
 
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 TENANT_ID = os.getenv("TENANT_ID")
-SCOPE = os.getenv("SCOPE")
-SENDER_EMAIL = os.getenv("SENDER_EMAIL")
 
-AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-print(CLIENT_ID , TENANT_ID , AUTHORITY , "tfewvybuinrmubyvbhivwnfebhfjnqknoejiwbhvu")
+def send_email(recipient_email, description):
+    AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+    SCOPE = ["https://graph.microsoft.com/.default"]  # Use .default for client credentials flow
 
-app = msal.ConfidentialClientApplication(
-    client_id=CLIENT_ID,
-    client_credential=CLIENT_SECRET,
-    authority=AUTHORITY,
-)
+    app = msal.ConfidentialClientApplication(
+        client_id=CLIENT_ID,
+        client_credential=CLIENT_SECRET,
+        authority=AUTHORITY,
+    )
 
+    # Acquire token using client credentials flow
+    result = app.acquire_token_for_client(scopes=SCOPE)
 
+    if "access_token" in result:
+        print("✅ Access token acquired.")
+        access_token = result["access_token"]
+    else:
+        print(f"❌ Failed to acquire token: {result.get('error_description')}")
+        return
 
-def send_email(recipient_email: str, subject: str, purpose: str, **kwargs) -> bool:
-    try:
-        token_result = app.acquire_token_for_client(scopes=SCOPE)
-        if "access_token" not in token_result:
-            print("❌ Token Error:", token_result.get("error_description"))
-            return False
+    # Extract the sender's name from the email
+    def get_name_from_email(email):
+        # Strip the domain part of the email to get the name
+        name = email.split('@')[0]
+        return name.capitalize()
 
-        access_token = token_result["access_token"]
-        email_body = generate_email_body(purpose, **kwargs)
+    # Define sender email (change this to the actual sender email you're using for the app)
+    sender_email = "technical_user@ielektron.com"
 
-        message = {
-            "message": {
-                "subject": subject,
-                "body": {
-                    "contentType": "Text",
-                    "content": email_body
-                },
-                "toRecipients": [
-                    {
-                        "emailAddress": {
-                            "address": recipient_email
-                        }
+    # Create email body with sender's name
+    email_body = f"Hello {get_name_from_email(recipient_email)}! {description}"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    email_msg = {
+        "message": {
+            "subject": "C2DeVal",
+            "body": {
+                "contentType": "Text",
+                "content": email_body
+            },
+            "toRecipients": [
+                {
+                    "emailAddress": {
+                        "address": recipient_email
                     }
-                ]
-            }
+                }
+            ]
         }
+    }
 
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
+    # Use the correct endpoint with the sender email
+    response = requests.post(
+        f"https://graph.microsoft.com/v1.0/users/{sender_email}/sendMail",  # Sender email here
+        headers=headers,
+        json=email_msg
+    )
 
-        response = requests.post(
-            f"https://graph.microsoft.com/v1.0/users/{SENDER_EMAIL}/sendMail",
-            headers=headers,
-            json=message
-        )
+    if response.status_code == 202:
+        print("✅ Email sent successfully!")
+    else:
+        print(f"❌ Failed to send email: {response.status_code}")
+        print(response.json())
 
-        if response.status_code == 202:
-            print(f"✅ Email sent to {recipient_email}")
-            return True
-        else:
-            print(f"❌ Failed to send email ({response.status_code}):", response.json())
-            return False
-
-    except Exception as e:
-        print("❌ Exception occurred while sending email:", str(e))
-        return False
+# Example usage
+# send_mail("gk1291@outlook.com", "This is a test email from DigiVidya team")

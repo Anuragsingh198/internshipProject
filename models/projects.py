@@ -76,7 +76,7 @@ class ProjectHistory(Base):
     history_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.project_id"), nullable=False)
     employee_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    role_id = Column(UUID(as_uuid=True), ForeignKey("roles.role_id"), nullable=False)
+    # role_id = Column(UUID(as_uuid=True), ForeignKey("roles.role_id"), nullable=False)
 
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)

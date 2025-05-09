@@ -4,12 +4,13 @@ from core.database import SessionLocal
 from models import projects as project_models , users as users_model , roles as role_model
 from sqlalchemy.exc import IntegrityError
 from schemas import projects as projects_schemas
+from SendEmail import send_email
 from uuid import UUID
 import uuid
 from  typing import  Optional 
 from datetime import datetime
 router = APIRouter(prefix="/projects", tags=["Projects"])
-from models.projects import ProjectDetailsStatusEnum , ProjectStatusEnum
+# from models.projects import ProjectDetailsStatusEnum , ProjectStatusEnum
 
 def get_db():
     db = SessionLocal()
@@ -18,9 +19,12 @@ def get_db():
     finally:
         db.close()
 
-
 @router.post("/addNewProject" , response_model=projects_schemas.AddProjectResponse)
 def create_new_project(payload: projects_schemas.AddNewProjects, db: Session = Depends(get_db)):
+    users =  db.query(users_model.User).filter_by(users_model.User.id == payload.project_owner).first()
+    if not users:
+        raise HTTPException(status_code=404 , detail="assigned  manager  not  exists")
+    
     new_project = project_models.Project(
         project_id=uuid.uuid4(),
         project_name=payload.project_name,
@@ -38,6 +42,10 @@ def create_new_project(payload: projects_schemas.AddNewProjects, db: Session = D
     db.add(new_project)
     db.commit()
     db.refresh(new_project)
+    send_email(
+        recipient_email=users.email,
+        description=f"\n You have been  Assigned new proejct \n Project Name: {payload.project_name} \n you will be  handeling  this  project\n Project  Duration  is  from {payload.start_date} to {payload.end_date}\nThank you!\nTeam Ielektron"
+    )
     return {
         "message": "Project created successfully!",
     }
@@ -82,7 +90,6 @@ def update_project_detail(
     detail_id: UUID,
     payload: projects_schemas.ProjectDetailUpdate,
     db: Session = Depends(get_db),
-    editor_id: Optional[UUID] = Query(None, description="UUID of the user editing the record")
 ):
     detail_obj = db.query(project_models.ProjectDetail).filter_by(details_id=detail_id).first()
 
@@ -93,9 +100,7 @@ def update_project_detail(
         setattr(detail_obj, attr, value)
 
     detail_obj.last_edited_on = datetime.utcnow()
-    
-    if editor_id:
-        detail_obj.last_edited_by = editor_id
+    detail_obj.last_edited_by = payload.approved_manager
 
     db.commit()
     db.refresh(detail_obj)
@@ -124,26 +129,15 @@ def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: 
     project = db.query(project_models.Project).filter(project_models.Project.project_id == payload.project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
-    if not isinstance(payload.status, ProjectStatusEnum):
-        try:
-            payload.status = ProjectStatusEnum(payload.status)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid status enum.")
-
-    if not isinstance(payload.admin_approved, ProjectDetailsStatusEnum):
-        try:
-            payload.admin_approved = ProjectDetailsStatusEnum(payload.admin_approved)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid admin approval status.")
-        
+  
     new_detail = project_models.ProjectDetail(
         project_id=payload.project_id,
         employee_id=user.id,
         role_id=payload.role_id,
-        status=ProjectStatusEnum(payload.status),
+        status=payload.status,
         manager_approved=payload.manager_approved,
         approved_manager=payload.approved_manager,
-        admin_approved=ProjectDetailsStatusEnum(payload.admin_approved),
+        admin_approved=payload.admin_approved,
         last_edited_on=datetime.utcnow(),
         last_edited_by=payload.approved_manager,
     )
@@ -151,6 +145,10 @@ def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: 
     db.add(new_detail)
     db.commit()
     db.refresh(new_detail)
+    send_email(
+        recipient_email=user.email,
+        description=f"\n You have been  Assigned new proejct \n Project Name: {payload.project_name} \n your role is {role.role_id}\nThank you!\nTeam Ielektron"
+    )
 
     response = {
         "message": "User successfully added to project.",
@@ -179,33 +177,78 @@ def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: 
     return response
 
 
-@router.put("/delete-project/{project_id}")
-def delete_project(project_id: UUID, db: Session = Depends(get_db)):
-    project = db.query(project_models.Project).filter_by(project_id=project_id).first()
+@router.patch("/update-project/{project_id}")
+def update_project(project_id: UUID, payload: projects_schemas.ProjectUpdate, db: Session = Depends(get_db)):
+    project = db.query(project_models.Project).filter(project_models.Project.project_id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    project_details = db.query(project_models.ProjectDetail).filter_by(project_id=project_id).all()
-    if not project_details:
-        raise HTTPException(status_code=404, detail="No project details found for this project")
+    old_owner = project.project_owner
+    owner_changed = False
+
+    if payload.project_owner and payload.project_owner != old_owner:
+        owner_changed = True
+        project.project_owner = payload.project_owner
+
+    if payload.project_name:
+        project.project_name = payload.project_name
+    if payload.project_description:
+        project.project_description = payload.project_description
+    if payload.project_status:
+        project.project_status = payload.project_status
+    if payload.start_date:
+        project.start_date = payload.start_date
+    if payload.end_date:
+        project.end_date = payload.end_date
+
+    if owner_changed:
+        project_details = db.query(project_models.ProjectDetail).filter(project_models.ProjectDetail.project_id == project_id).all()
+        for detail in project_details:
+            detail.approved_manager = payload.project_owner
+    history = project_models.ProjectHistory(
+                project_id=project.project_id,
+                employee_id=old_owner.id,
+                # role_id=detail.role_id,
+                start_date=project.start_date,
+                end_date=datetime.utcnow()
+            )
+    db.add(history)       
+    db.commit()
+    db.refresh(project)
+    return {"message": "Project updated successfully"}
+
+@router.get("/delete-project/{project_id}")
+def delete_project(project_id: UUID, db: Session = Depends(get_db)):
+    project = db.query(project_models.Project).filter(project_models.Project.project_id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    manager = db.query(users_model.User).filter(users_model.User.id == project.project_owner).first()
+    if not manager:
+        raise HTTPException(status_code=404, detail="No project owner found for this project")
 
     project.project_status = "dropped"
-
-
-    for detail in project_details:
-        detail.status = "Dropped"
-        detail.last_edited_on = datetime.utcnow()
-
-        history = project_models.ProjectHistory(
+    project_details = db.query(project_models.ProjectDetail).filter(project_models.ProjectDetail.project_id == project_id).all()
+    if  project_details:
+        for detail in project_details:
+            detail.status = "Dropped"
+            detail.last_edited_on = datetime.utcnow()
+    history = project_models.ProjectHistory(
             project_id=project_id,
-            employee_id=project.project_owner,
-            role_id=detail.role_id,
-            start_date=project.start_date ,
+            employee_id=manager.id,
+            # role_id=detail.role_id,
+            start_date=project.start_date,
             end_date=datetime.utcnow()
         )
-        db.add(history)
+    db.add(history)   
+
     db.commit()
+    send_email(
+        recipient_email=manager.email,
+        description=f"\nCurrent project {project.project_name} has been dropped by admin.\n\nThank you!\nTeam Ielektron"
+    )
     return {"detail": "Project marked as dropped, all related details updated, and history recorded"}
+
 
 
 

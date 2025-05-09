@@ -11,17 +11,16 @@ from datetime import date, timedelta, datetime
 
 # Update in models/projects.py (or wherever ProjectStatusEnum, ProjectDetailsStatusEnum are defined)
 class ProjectStatusEnum:
-    NEW = "New"
-    IN_PROGRESS = "In Progress"
+    IN_PROGRESS = "Ongoing"
     COMPLETED = "Completed"
     ON_HOLD = "On Hold"
+    DROPPED="Dropped"
 
 
 class ProjectDetailsStatusEnum:
     PENDING = "Pending"
     APPROVED = "Approved"
     REJECTED = "Rejected"
-    UNDER_REVIEW = "Under Review"
 
 
 Base.metadata.create_all(bind=engine)
@@ -92,7 +91,7 @@ def seed_data():
             role = Role(
                 role_id=uuid.uuid4(),
                 role_name=f"Role{i}",
-                role_descrition=f"Description for Role{i}"
+                role_description=f"Description for Role{i}"
             )
             session.add(role)
             role_list.append(role)
@@ -106,7 +105,7 @@ def seed_data():
                 project_name=f"Project {i}",
                 project_description=f"Description {i}",
                 project_owner=random.choice(user_list).id,
-                project_status=random.choice([ProjectStatusEnum.NEW, ProjectStatusEnum.IN_PROGRESS, ProjectStatusEnum.COMPLETED, ProjectStatusEnum.ON_HOLD]),
+                project_status=random.choice([ProjectStatusEnum.DROPPED, ProjectStatusEnum.IN_PROGRESS, ProjectStatusEnum.COMPLETED, ProjectStatusEnum.ON_HOLD]),
                 DA=bool(random.getrandbits(1)),
                 AF=bool(random.getrandbits(1)),
                 EA=bool(random.getrandbits(1)),
@@ -128,10 +127,10 @@ def seed_data():
                     project_id=project.project_id,
                     employee_id=user.id,
                     role_id=random.choice(role_list).role_id,
-                    status=random.choice([ProjectStatusEnum.NEW, ProjectStatusEnum.IN_PROGRESS, ProjectStatusEnum.COMPLETED, ProjectStatusEnum.ON_HOLD]),
+                    status=random.choice([ProjectStatusEnum.DROPPED, ProjectStatusEnum.IN_PROGRESS, ProjectStatusEnum.COMPLETED, ProjectStatusEnum.ON_HOLD]),
                     manager_approved=bool(random.getrandbits(1)),
                     approved_manager=random.choice(manager_users).id,
-                    admin_approved=random.choice([ProjectDetailsStatusEnum.PENDING, ProjectDetailsStatusEnum.APPROVED, ProjectDetailsStatusEnum.REJECTED, ProjectDetailsStatusEnum.UNDER_REVIEW]),
+                    admin_approved=random.choice([ProjectDetailsStatusEnum.PENDING, ProjectDetailsStatusEnum.APPROVED, ProjectDetailsStatusEnum.REJECTED]),
                     last_edited_on=datetime.utcnow(),
                     last_edited_by=editor.id
                 )
@@ -144,7 +143,7 @@ def seed_data():
                     history_id=uuid.uuid4(),
                     project_id=project.project_id,
                     employee_id=user.id,
-                    role_id=random.choice(role_list).role_id,
+                    # role_id=random.choice(role_list).role_id,
                     start_date=random_date(date(2022, 1, 1), date(2022, 6, 1)),
                     end_date=random_date(date(2022, 6, 2), date(2022, 12, 31))
                 )

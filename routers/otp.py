@@ -28,11 +28,11 @@ def generate_opt(request: OTPRequest, db: Session = Depends(get_db)):
         db.add(OTP(email=request.email, otp=otp_code))
     
     db.commit()
+
+    # Send OTP email
     send_email(
         recipient_email=request.email,
-        subject="Your DigiVidya OTP Code",
-        purpose="otp",
-        otp=otp_code
+        description=f"Hi {request.email},\n\nYour OTP for email confirmation is: {otp_code}\n\nThank you!\nTeam Ielektron"
     )
 
     return {"message": f"OTP sent to {request.email}"}

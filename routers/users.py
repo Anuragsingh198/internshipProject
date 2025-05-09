@@ -55,13 +55,15 @@ def signup(user_data: user_schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     access_token = create_access_token(data={"sub": str(new_user.id)})
-    send_email(recipient_email="anuragsingh.bisen@ielektron.com" , status="pending" , description="Your account has been created")
+    send_email(recipient_email=user_data.email  , description="Your account has been created")
     return {
         "detail": "User created successfully",
         "access_token": access_token,
         "token_type": "bearer",
         "user": user_schemas.UserOut.from_orm(new_user)
     }
+
+
 
 @router.post("/login", response_model=user_schemas.LoginResponse)
 def login_user(email: str, password: str, db: Session = Depends(get_db)):
@@ -89,7 +91,7 @@ def login_user(email: str, password: str, db: Session = Depends(get_db)):
     }
 @router.get('/getAllUsers', response_model=user_schemas.AllUsers)
 def getusers(db: Session = Depends(get_db)):
-    send_status_email(recipient_email="anuragsingh.bisen@ielektron.com" , status="pending" , description="Your account has been created")
+    # send_email(recipient_email="anuragsingh.bisen@ielektron.com" , status="pending" , description="Your account has been created")
     allUsers_obj = db.query(user_models.User).filter(
         (user_models.User.is_manager == False) & 
         (user_models.User.is_admin == False)
@@ -124,7 +126,6 @@ def update_user(user_id: UUID, user_data: user_schemas.UserOut, db: Session = De
     return user_obj
 
 
-
 @router.put("/delete-user/{user_id}")
 def deactivate_user(user_id: UUID, db: Session = Depends(get_db)):
     user_obj = db.query(user_models.User).filter_by(id=user_id).first()
@@ -156,7 +157,7 @@ def get_Approved_users(user_id: UUID, db: Session = Depends(get_db)):
 
     approved_projects = db.query(projects.ProjectDetail).filter(
         projects.ProjectDetail.manager_approved == True,
-        projects.ProjectDetail.admin_approved == "approved"
+        projects.ProjectDetail.admin_approved == "Approved"
     )
     if manageroradmin.is_manager:
         approved_projects = approved_projects.filter(
@@ -294,7 +295,15 @@ def approve_user_by_admin(
         raise HTTPException(status_code=403, detail="Only admins can perform this action")
 
     detail = db.query(projects.ProjectDetail).filter(projects.ProjectDetail.details_id == data.details_id).first()
-
+    currProject = db.query(projects.Project).filter(projects.Project.project_id == detail.project_id_id).first()
+    if not currProject:
+        raise HTTPException(status_code=404, detail="project  not found")
+    manager = db.query(user_models.User).filter(user_models.User.id == detail.approved_manager).first()
+    if not manager:
+        raise HTTPException(status_code=404, detail="manager user not found")
+    employee = db.query(user_models.User).filter(user_models.User.id == detail.employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="employee user not found")
     if not detail:
         raise HTTPException(status_code=404, detail="Project detail not found")
 
@@ -307,9 +316,17 @@ def approve_user_by_admin(
     detail.last_edited_by = data.admin_id
 
     db.commit()
-
+    send_email(
+        recipient_email=manager.email,
+        description=f"\n your request for the  project is {data.admin_approved}  by the admin \n Project Name: {currProject.project_name} \n\nThank you!\nTeam Ielektron"
+    )
     if data.admin_approved:
+        send_email(
+        recipient_email=employee.email,
+        description=f"\n you have  assigned a new proejct by {manager.first_name} {manager.last_name}  \n Project Name: {currProject.project_name} \n\nThank you!\nTeam Ielektron"
+        )
         return {"detail": "User has been approved by admin"}
+       
     else:
         return {"detail": "Admin Suspend the user/project", "remark": data.remark}
 
