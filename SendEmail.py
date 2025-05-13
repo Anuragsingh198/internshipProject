@@ -11,7 +11,7 @@ TENANT_ID = os.getenv("TENANT_ID")
 
 def send_email(recipient_email, description):
     AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-    SCOPE = ["https://graph.microsoft.com/.default"]  # Use .default for client credentials flow
+    SCOPE = ["https://graph.microsoft.com/.default"]
 
     app = msal.ConfidentialClientApplication(
         client_id=CLIENT_ID,
@@ -29,17 +29,23 @@ def send_email(recipient_email, description):
         print(f"❌ Failed to acquire token: {result.get('error_description')}")
         return
 
-    # Extract the sender's name from the email
+    # Extract the recipient's name from the email
     def get_name_from_email(email):
-        # Strip the domain part of the email to get the name
         name = email.split('@')[0]
         return name.capitalize()
 
-    # Define sender email (change this to the actual sender email you're using for the app)
+    # Sender email (must be allowed to send mail via Graph API)
     sender_email = "technical_user@ielektron.com"
 
-    # Create email body with sender's name
-    email_body = f"Hello {get_name_from_email(recipient_email)}! {description}"
+    # Create HTML email body
+    email_body = f"""
+        <html>
+            <body>
+                <p>Hello {get_name_from_email(recipient_email)}!</p>
+                <div>{description}</div>
+            </body>
+        </html>
+    """
 
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -50,7 +56,7 @@ def send_email(recipient_email, description):
         "message": {
             "subject": "C2DeVal",
             "body": {
-                "contentType": "Text",
+                "contentType": "HTML",
                 "content": email_body
             },
             "toRecipients": [
@@ -63,9 +69,9 @@ def send_email(recipient_email, description):
         }
     }
 
-    # Use the correct endpoint with the sender email
+    # Send the email
     response = requests.post(
-        f"https://graph.microsoft.com/v1.0/users/{sender_email}/sendMail",  # Sender email here
+        f"https://graph.microsoft.com/v1.0/users/{sender_email}/sendMail",
         headers=headers,
         json=email_msg
     )
@@ -76,5 +82,6 @@ def send_email(recipient_email, description):
         print(f"❌ Failed to send email: {response.status_code}")
         print(response.json())
 
-# Example usage
-# send_mail("gk1291@outlook.com", "This is a test email from DigiVidya team")
+# Example usage:
+# html_description = "<h1>Welcome!</h1><p>This is an HTML email.</p>"
+# send_email("gk1291@outlook.com", html_description)

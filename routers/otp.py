@@ -38,6 +38,7 @@ def generate_opt(request: OTPRequest, db: Session = Depends(get_db)):
     return {"message": f"OTP sent to {request.email}"}
 
 
+
 @router.post('/verifyotp', response_model=OTPVerifyResponse)
 def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
     record = db.query(OTP).filter_by(email=request.email).first()

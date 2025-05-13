@@ -14,6 +14,7 @@ from datetime import datetime
 from SendEmail import send_email
 from utils.hash import hash_password , verify_password
 import random
+from utils.email_templates import manager_request_user_assignment_template , html_description_manager ,user_account_created_template,  html_description_user , html_description_otp
 router = APIRouter(prefix="/users", tags=["Users"])
 
 def get_db():
@@ -42,7 +43,7 @@ def signup(user_data: user_schemas.UserCreate, db: Session = Depends(get_db)):
         emp_id=user_data.emp_id,
         first_name=user_data.first_name,
         last_name=user_data.last_name,
-        username=f"{user_data.first_name[0]}{user_data.last_name[-1]}{user_data.emp_id}",
+        username=f"{user_data.first_name[0]}{user_data.last_name[-1]}",
         email=user_data.email,
         password=hashed_password,
         is_active=True,
@@ -55,9 +56,11 @@ def signup(user_data: user_schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     access_token = create_access_token(data={"sub": str(new_user.id)})
-    send_email(recipient_email=user_data.email  , description="Your account has been created")
+    user_name =  user_data.first_name + user_data.last_name
+    descritpion_user= user_account_created_template(name=user_name)
+    send_email(recipient_email=user_data.email  , description=descritpion_user)
     return {
-        "detail": "User created successfully",
+        "status": "success",
         "access_token": access_token,
         "token_type": "bearer",
         "user": user_schemas.UserOut.from_orm(new_user)
@@ -287,7 +290,6 @@ def approve_user_by_admin(
     db: Session = Depends(get_db)
 ):
     admin_user = db.query(user_models.User).filter(user_models.User.id == data.admin_id).first()
-
     if not admin_user:
         raise HTTPException(status_code=404, detail="Admin user not found")
 
@@ -295,20 +297,23 @@ def approve_user_by_admin(
         raise HTTPException(status_code=403, detail="Only admins can perform this action")
 
     detail = db.query(projects.ProjectDetail).filter(projects.ProjectDetail.details_id == data.details_id).first()
-    currProject = db.query(projects.Project).filter(projects.Project.project_id == detail.project_id_id).first()
-    if not currProject:
-        raise HTTPException(status_code=404, detail="project  not found")
-    manager = db.query(user_models.User).filter(user_models.User.id == detail.approved_manager).first()
-    if not manager:
-        raise HTTPException(status_code=404, detail="manager user not found")
-    employee = db.query(user_models.User).filter(user_models.User.id == detail.employee_id).first()
-    if not employee:
-        raise HTTPException(status_code=404, detail="employee user not found")
     if not detail:
         raise HTTPException(status_code=404, detail="Project detail not found")
 
     if not detail.manager_approved:
         raise HTTPException(status_code=400, detail="Project must be approved by manager first")
+
+    currProject = db.query(projects.Project).filter(projects.Project.project_id == detail.project_id).first()
+    if not currProject:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    manager = db.query(user_models.User).filter(user_models.User.id == detail.approved_manager).first()
+    if not manager:
+        raise HTTPException(status_code=404, detail="Manager not found")
+
+    employee = db.query(user_models.User).filter(user_models.User.id == detail.employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
 
     detail.admin_approved = data.admin_approved
     detail.remark = data.remark
@@ -316,18 +321,47 @@ def approve_user_by_admin(
     detail.last_edited_by = data.admin_id
 
     db.commit()
-    send_email(
-        recipient_email=manager.email,
-        description=f"\n your request for the  project is {data.admin_approved}  by the admin \n Project Name: {currProject.project_name} \n\nThank you!\nTeam Ielektron"
-    )
+
     if data.admin_approved:
-        send_email(
-        recipient_email=employee.email,
-        description=f"\n you have  assigned a new proejct by {manager.first_name} {manager.last_name}  \n Project Name: {currProject.project_name} \n\nThank you!\nTeam Ielektron"
+
+        manager_email_html = html_description_manager(
+            project=currProject,
+            manager=f"{manager.first_name} {manager.last_name}",
+            admin=f"{admin_user.first_name} {admin_user.last_name}"
         )
+        send_email(
+            recipient_email=manager.email,
+            description=manager_email_html
+        )
+
+
+        user_email_html = html_description_user(
+            admin=f"{admin_user.first_name} {admin_user.last_name}",
+            user=f"{employee.first_name} {employee.last_name}",
+            project=currProject,
+            manager=f"{manager.first_name} {manager.last_name}"
+        )
+        send_email(
+            recipient_email=employee.email,
+            description=user_email_html
+        )
+
         return {"detail": "User has been approved by admin"}
-       
+    
     else:
-        return {"detail": "Admin Suspend the user/project", "remark": data.remark}
+        rejection_message = f"""
+        <h2 style="color: #dc3545;">❌ Project Assignment Rejected</h2>
+        <p>Dear {manager.first_name} {manager.last_name},</p>
 
+        <p>Your request to assign <strong>{employee.first_name} {employee.last_name}</strong> to the project <strong>{currProject.project_name}</strong> has been <strong>rejected by {admin_user.first_name} {admin_user.last_name}</strong>.</p>
 
+        <p><strong>Remark:</strong> {data.remark}</p>
+
+        <p style="margin-top: 30px;">Regards,<br>C2DeVal Admin</p>
+        """
+        send_email(
+            recipient_email=manager.email,
+            description=rejection_message
+        )
+
+        return {"detail": "Admin rejected the user/project", "remark": data.remark}

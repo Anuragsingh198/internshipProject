@@ -10,6 +10,7 @@ import uuid
 from  typing import  Optional 
 from datetime import datetime
 router = APIRouter(prefix="/projects", tags=["Projects"])
+from utils.email_templates import  user_account_created_template , manager_request_user_assignment_template
 # from models.projects import ProjectDetailsStatusEnum , ProjectStatusEnum
 
 def get_db():
@@ -42,10 +43,10 @@ def create_new_project(payload: projects_schemas.AddNewProjects, db: Session = D
     db.add(new_project)
     db.commit()
     db.refresh(new_project)
-    send_email(
-        recipient_email=users.email,
-        description=f"\n You have been  Assigned new proejct \n Project Name: {payload.project_name} \n you will be  handeling  this  project\n Project  Duration  is  from {payload.start_date} to {payload.end_date}\nThank you!\nTeam Ielektron"
-    )
+    # send_email(
+    #     recipient_email=users.email,
+    #     description=f"\n You have been  Assigned new proejct \n Project Name: {payload.project_name} \n you will be  handeling  this  project\n Project  Duration  is  from {payload.start_date} to {payload.end_date}\nThank you!\nTeam Ielektron"
+    # )
     return {
         "message": "Project created successfully!",
     }
@@ -81,6 +82,9 @@ def get_all_projects(db: Session = Depends(get_db)):
             "end_date": project.end_date
         })
 
+    # send_email("anuragsingh.bisen@ielektron.com", "hi anurag");
+    descritpion_user= user_account_created_template(name="anurag")
+    send_email(recipient_email="anuragsingh.bisen@ielektron.com"  , description=descritpion_user)
     return {"projects": projects_out}
 
 
@@ -107,14 +111,15 @@ def update_project_detail(
     return detail_obj
 
 
-
 @router.post("/addNewProjectToUser", response_model=dict)
 def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: Session = Depends(get_db)):
 
     user = db.query(users_model.User).filter(users_model.User.id == payload.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
-
+    admin_obj = db.query(users_model.User).filter_by(is_admin=True).first()
+    if not admin_obj:
+        raise HTTPException(status_code=404, detail="No admin is there for  approval not found.")
     manager = db.query(users_model.User).filter(
         users_model.User.is_manager == True,
         users_model.User.id == payload.approved_manager
@@ -145,9 +150,21 @@ def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: 
     db.add(new_detail)
     db.commit()
     db.refresh(new_detail)
+    
+   
+    email_html = manager_request_user_assignment_template(
+        admin= f"{admin_obj.first_name} {admin_obj.last_name}",
+        manager=f"{manager.first_name} {manager.last_name}",
+        user=f"{user.first_name} {user.last_name}",
+        role=role.role_name,
+        users=user,
+        project=project.project_name
+    )
+
     send_email(
-        recipient_email=user.email,
-        description=f"\n You have been  Assigned new proejct \n Project Name: {payload.project_name} \n your role is {role.role_id}\nThank you!\nTeam Ielektron"
+        # recipient_email=admin_obj.email,
+        recipient_email="anuragsingh.bisen@ielektron.com",
+        description=email_html
     )
 
     response = {
@@ -248,7 +265,6 @@ def delete_project(project_id: UUID, db: Session = Depends(get_db)):
         description=f"\nCurrent project {project.project_name} has been dropped by admin.\n\nThank you!\nTeam Ielektron"
     )
     return {"detail": "Project marked as dropped, all related details updated, and history recorded"}
-
 
 
 

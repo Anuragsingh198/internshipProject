@@ -83,4 +83,4 @@ class ProjectHistory(Base):
 
     project = relationship("Project", back_populates="history")
     employee = relationship("User", foreign_keys=[employee_id])
-    role = relationship("Role")
+    # role = relationship("Role")
