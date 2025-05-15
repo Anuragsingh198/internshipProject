@@ -1,4 +1,5 @@
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 from fastapi import Request
 from auth.jwthandler import decode_access_token
 from models.users import User as user_models
@@ -22,12 +23,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             payload = decode_access_token(token)
             if payload:
                 user_id = payload.get("sub")
-
-        # Attach user_id to request.state (even if it's None)
         request.state.user_id = user_id
-
-        # OPTIONAL: redirect to login if user_id is required for HTML pages
         if not user_id:
-            return RedirectResponse(url="/login")
-
+            return JSONResponse(status_code=401, content={"detail": "Please login to perform this action"})
         return await call_next(request)

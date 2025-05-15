@@ -53,12 +53,13 @@ class ProjectDetailsOut(BaseModel):
 
 class  allProjectOut(BaseModel):
     allProjects:List[ProjectDetailsOut]
+    pagination:dict
     class Config:
         orm_mode=True
 
 class AllProjectsOut(BaseModel):
     projects: List[ProjectOut]
-
+    pagination:dict
     class Config:
         orm_mode = True
 

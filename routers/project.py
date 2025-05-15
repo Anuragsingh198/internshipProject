@@ -7,8 +7,11 @@ from schemas import projects as projects_schemas
 from SendEmail import send_email
 from uuid import UUID
 import uuid
+from math import ceil
 from  typing import  Optional 
 from datetime import datetime
+from auth.getCurrUser import get_current_user
+
 router = APIRouter(prefix="/projects", tags=["Projects"])
 from utils.email_templates import  user_account_created_template , manager_request_user_assignment_template
 # from models.projects import ProjectDetailsStatusEnum , ProjectStatusEnum
@@ -59,14 +62,26 @@ def create_new_project( request: Request, payload: projects_schemas.AddNewProjec
     }
 
 @router.get("/", response_model=projects_schemas.AllProjectsOut)
-def get_all_projects(db: Session = Depends(get_db)):
+def get_all_projects(
+    page: int = Query(1, ge=1),
+    db: Session = Depends(get_db),
+    current_user: users_model.User = Depends(get_current_user)
+):
+    if not  current_user:
+        raise HTTPException(status_code=403, detail="login  please")
+    limit = 10
+    offset = (page - 1) * limit
+
+    total_count = db.query(project_models.Project).count()
+    total_page_count = ceil(total_count / limit)
+
     all_projects = db.query(
         project_models.Project,
         users_model.User.first_name,
         users_model.User.last_name
     ).join(
         users_model.User, project_models.Project.project_owner == users_model.User.id
-    ).all()
+    ).offset(offset).limit(limit).all()
 
     if not all_projects:
         raise HTTPException(status_code=404, detail="Projects not found")
@@ -88,11 +103,15 @@ def get_all_projects(db: Session = Depends(get_db)):
             "start_date": project.start_date,
             "end_date": project.end_date
         })
-
-    # send_email("anuragsingh.bisen@ielektron.com", "hi anurag");
-    descritpion_user= user_account_created_template(name="anurag")
-    send_email(recipient_email="anuragsingh.bisen@ielektron.com"  , description=descritpion_user)
-    return {"projects": projects_out}
+    return {
+        "projects": projects_out,
+        "pagination": {
+            "total_count": total_count,
+            "total_pages": total_page_count,
+            "current_page": page,
+            "per_page": limit
+        }
+    }
 
 
 
@@ -101,8 +120,14 @@ def update_project_detail(
     detail_id: UUID,
     payload: projects_schemas.ProjectDetailUpdate,
     db: Session = Depends(get_db),
+   current_user: users_model.User = Depends(get_current_user)
 ):
     detail_obj = db.query(project_models.ProjectDetail).filter_by(details_id=detail_id).first()
+    
+    if not current_user:
+        raise HTTPException(status_code=403 , detail="No  Login  User  Found")
+    if not  current_user.is_admin or current_user.is_manager:
+        raise HTTPException(status_code=403 , detail="Only   Admin or manager Can  Perform  this action")
 
     if not detail_obj:
         raise HTTPException(status_code=404, detail="Project detail not found")
@@ -119,7 +144,12 @@ def update_project_detail(
 
 
 @router.post("/addNewProjectToUser", response_model=dict)
-def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: Session = Depends(get_db)):
+def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects,current_user: users_model.User = Depends(get_current_user), db: Session = Depends(get_db)):
+
+    if not current_user:
+        raise HTTPException(status_code=403 , detail="No  Login  User  Found")
+    if  not  current_user.is_admin or current_user.is_manager:
+        raise HTTPException(status_code=403 , detail="Only   Admin or manager Can  Perform  this action")
 
     user = db.query(users_model.User).filter(users_model.User.id == payload.user_id).first()
     if not user:
@@ -202,7 +232,12 @@ def add_new_user_to_project(payload: projects_schemas.AddNewUserToProjects, db: 
 
 
 @router.patch("/update-project/{project_id}")
-def update_project(project_id: UUID, payload: projects_schemas.ProjectUpdate, db: Session = Depends(get_db)):
+def update_project(project_id: UUID, payload: projects_schemas.ProjectUpdate,current_user: users_model.User = Depends(get_current_user),  db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=403 , detail="No  Login  User  Found")
+    if  not current_user.is_admin  :
+        raise HTTPException(status_code=403 , detail="Only   Admin or manager Can  Perform  this action")
+    
     project = db.query(project_models.Project).filter(project_models.Project.project_id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -242,7 +277,13 @@ def update_project(project_id: UUID, payload: projects_schemas.ProjectUpdate, db
     return {"message": "Project updated successfully"}
 
 @router.get("/delete-project/{project_id}")
-def delete_project(project_id: UUID, db: Session = Depends(get_db)):
+def delete_project(project_id: UUID,current_user: users_model.User = Depends(get_current_user), db: Session = Depends(get_db)):
+
+    if not current_user:
+        raise HTTPException(status_code=403 , detail="No  Login  User  Found")
+    if  not current_user.is_admin:
+        raise HTTPException(status_code=403 , detail="Only   Admin or manager Can  Perform  this action")
+
     project = db.query(project_models.Project).filter(project_models.Project.project_id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")

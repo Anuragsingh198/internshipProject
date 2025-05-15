@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status ,Request , Response
+from fastapi import APIRouter, Depends, HTTPException, status ,Request , Response, Query
 from sqlalchemy.orm import Session
 from core.database import SessionLocal
 from models import users as user_models, projects 
@@ -13,6 +13,7 @@ from datetime import datetime
 from SendEmail import send_email
 from utils.hash import hash_password , verify_password
 import random
+from math import ceil
 from auth.getCurrUser import get_current_user
 from utils.email_templates import manager_request_user_assignment_template , html_description_manager ,user_account_created_template,  html_description_user , html_description_otp
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -175,22 +176,40 @@ def reset_user_password(email:str, newpassword:str, db:Session =  Depends(get_db
     db.refresh(user_obj)
     return {"detail":"user passweord   has  changed  successfully"}
 
+from math import ceil
+from fastapi import Query
+
 @router.get("/Approved/new-user-request/{user_id}", response_model=project_scjemas.allProjectOut)
-def get_Approved_users(user_id: UUID, db: Session = Depends(get_db)):
+def get_Approved_users(
+    user_id: UUID,
+    page: int = Query(1, ge=1),
+    current_user: user_models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not current_user:
+        raise HTTPException(status_code=403, detail="No Login User Found")
+    if not current_user.is_admin and not current_user.is_manager:
+        raise HTTPException(status_code=403, detail="Only Admin or Manager Can Perform This Action")
+
     manageroradmin = db.query(user_models.User).filter(user_models.User.id == user_id).first()
     if not manageroradmin:
         raise HTTPException(status_code=404, detail="Current user not found")
 
-    approved_projects = db.query(projects.ProjectDetail).filter(
+    limit = 10
+    offset = (page - 1) * limit
+
+    base_query = db.query(projects.ProjectDetail).filter(
         projects.ProjectDetail.manager_approved == True,
         projects.ProjectDetail.admin_approved == "Approved"
     )
-    if manageroradmin.is_manager:
-        approved_projects = approved_projects.filter(
-            projects.ProjectDetail.approved_manager == user_id
-        )
 
-    approved_projects = approved_projects.all()
+    if manageroradmin.is_manager:
+        base_query = base_query.filter(projects.ProjectDetail.approved_manager == user_id)
+
+    total_count = base_query.count()
+    total_pages = ceil(total_count / limit)
+
+    approved_projects = base_query.offset(offset).limit(limit).all()
 
     allProjectsout = []
     for proj in approved_projects:
@@ -198,13 +217,14 @@ def get_Approved_users(user_id: UUID, db: Session = Depends(get_db)):
         one_role = db.query(Role).filter(Role.role_id == proj.role_id).first()
         approved_manager = db.query(user_models.User).filter(user_models.User.id == proj.approved_manager).first()
         projectsdata = db.query(projects.Project).filter(projects.Project.project_id == proj.project_id).first()
+        
         if one_user and one_role and approved_manager:
             outOneProject = {
                 "details_id": proj.details_id,
                 "project_id": proj.project_id,
                 "user_id": one_user.id,
                 "employee_id": one_user.emp_id,
-                "project_name":projectsdata.project_name,
+                "project_name": projectsdata.project_name if projectsdata else None,
                 "employee_firstname": one_user.first_name,
                 "employee_lastname": one_user.last_name,
                 "employee_email": one_user.email,
@@ -222,25 +242,49 @@ def get_Approved_users(user_id: UUID, db: Session = Depends(get_db)):
             }
             allProjectsout.append(outOneProject)
 
-    return {"allProjects": allProjectsout}
+    return {
+        "allProjects": allProjectsout,
+        "pagination": {
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "current_page": page,
+            "per_page": limit
+        }
+    }
+
+
 
 @router.get("/notApproved/new-user-request/{user_id}", response_model=project_scjemas.allProjectOut)
-def get_notApproved_users(user_id: UUID, db: Session = Depends(get_db)):
+def get_notApproved_users(
+    user_id: UUID,
+    current_user: user_models.User = Depends(get_current_user),
+    page: int = Query(1, ge=1),
+    db: Session = Depends(get_db)
+):
+    if not current_user:
+        raise HTTPException(status_code=403, detail="No Login User Found")
+    if not current_user.is_admin and not current_user.is_manager:
+        raise HTTPException(status_code=403, detail="Only Admin or Manager Can Perform This Action")
+
     user = db.query(user_models.User).filter(user_models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Current user not found")
 
-    notApproved_projects = db.query(projects.ProjectDetail).filter(
+    limit = 10
+    offset = (page - 1) * limit
+
+    base_query = db.query(projects.ProjectDetail).filter(
         projects.ProjectDetail.manager_approved == True,
         projects.ProjectDetail.admin_approved.in_(["Pending", "Rejected"])
     )
 
     if user.is_manager:
-        notApproved_projects = notApproved_projects.filter(
-            projects.ProjectDetail.approved_manager == user_id
-        ).all()
-    else:
-        notApproved_projects = notApproved_projects.all()
+        base_query = base_query.filter(projects.ProjectDetail.approved_manager == user_id)
+
+    total_count = base_query.count()
+    total_pages = ceil(total_count / limit)
+
+    notApproved_projects = base_query.offset(offset).limit(limit).all()
 
     allProjectsout = []
     for proj in notApproved_projects:
@@ -248,11 +292,12 @@ def get_notApproved_users(user_id: UUID, db: Session = Depends(get_db)):
         one_role = db.query(Role).filter(Role.role_id == proj.role_id).first()
         approved_manager = db.query(user_models.User).filter(user_models.User.id == proj.approved_manager).first()
         projectsdata = db.query(projects.Project).filter(projects.Project.project_id == proj.project_id).first()
+
         if one_user and one_role and approved_manager:
             outOneProject = {
                 "details_id": proj.details_id,
                 "project_id": proj.project_id,
-                "project_name":projectsdata.project_name,
+                "project_name": projectsdata.project_name if projectsdata else None,
                 "user_id": one_user.id,
                 "employee_id": one_user.emp_id,
                 "employee_firstname": one_user.first_name,
@@ -272,9 +317,15 @@ def get_notApproved_users(user_id: UUID, db: Session = Depends(get_db)):
             }
             allProjectsout.append(outOneProject)
 
-    return {"allProjects": allProjectsout}
-
-
+    return {
+        "allProjects": allProjectsout,
+        "pagination": {
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "current_page": page,
+            "per_page": limit
+        }
+    }
 
 
 # @router.post("/manager/approve-user")
@@ -311,7 +362,14 @@ def get_notApproved_users(user_id: UUID, db: Session = Depends(get_db)):
 def approve_user_by_admin(
     data: user_schemas.AdminApprovalRequest,
     db: Session = Depends(get_db)
+    , current_user: user_models.User = Depends(get_current_user)
 ):
+    
+    if not current_user:
+        raise HTTPException(status_code=403 , detail="No  Login  User  Found")
+    if  not current_user.is_admin:
+        raise HTTPException(status_code=403 , detail="Only   Admin Can  Perform  this action")
+    
     admin_user = db.query(user_models.User).filter(user_models.User.id == data.admin_id).first()
     if not admin_user:
         raise HTTPException(status_code=404, detail="Admin user not found")

@@ -27,6 +27,7 @@ class RoleData(BaseModel):
 
 class AllRoles(BaseModel):
     roles: List[RoleOut]
+    pagination:dict
 
     class Config:
         orm_mode = True
