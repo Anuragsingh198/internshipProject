@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status ,Request , Response
 from sqlalchemy.orm import Session
 from core.database import SessionLocal
 from models import users as user_models, projects 
 from models.roles import Role
 from schemas import users as user_schemas , projects as project_scjemas , otp as otp_schemas
-from sqlalchemy.exc import IntegrityError
 import hashlib
 from auth.jwthandler import create_access_token
 from datetime import timedelta
@@ -14,6 +13,7 @@ from datetime import datetime
 from SendEmail import send_email
 from utils.hash import hash_password , verify_password
 import random
+from auth.getCurrUser import get_current_user
 from utils.email_templates import manager_request_user_assignment_template , html_description_manager ,user_account_created_template,  html_description_user , html_description_otp
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -24,15 +24,15 @@ def get_db():
     finally:
         db.close()
 
-
+@router.post('/logout' , response_model=dict)
+def logout(response : Response):
+    response.delete_cookie("access_token")
+    return {"message" :"Logged Out"}
 
 
 @router.post("/signup", response_model=dict)
-def signup(user_data: user_schemas.UserCreate, db: Session = Depends(get_db)):
-
-    existing_user = db.query(user_models.User).filter(
-        (user_models.User.email == user_data.email) | (user_models.User.emp_id == user_data.emp_id)
-    ).first()
+def signup(user_data: user_schemas.UserCreate, response:Response , db: Session = Depends(get_db)):
+    existing_user = db.query(user_models.User).filter((user_models.User.email == user_data.email) | (user_models.User.emp_id == user_data.emp_id)).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="User already exists")
 
@@ -43,7 +43,7 @@ def signup(user_data: user_schemas.UserCreate, db: Session = Depends(get_db)):
         emp_id=user_data.emp_id,
         first_name=user_data.first_name,
         last_name=user_data.last_name,
-        username=f"{user_data.first_name[0]}{user_data.last_name[-1]}",
+        username=f"{user_data.first_name[0]}{user_data.last_name[0]}",
         email=user_data.email,
         password=hashed_password,
         is_active=True,
@@ -54,8 +54,18 @@ def signup(user_data: user_schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-
+    
+    # Set Cookies Part
     access_token = create_access_token(data={"sub": str(new_user.id)})
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,  # Set to True in production (HTTPS only)
+        samesite="lax"
+    )
+
+    #Email Sending  Part
     user_name =  user_data.first_name + user_data.last_name
     descritpion_user= user_account_created_template(name=user_name)
     send_email(recipient_email=user_data.email  , description=descritpion_user)
@@ -66,10 +76,8 @@ def signup(user_data: user_schemas.UserCreate, db: Session = Depends(get_db)):
         "user": user_schemas.UserOut.from_orm(new_user)
     }
 
-
-
 @router.post("/login", response_model=user_schemas.LoginResponse)
-def login_user(email: str, password: str, db: Session = Depends(get_db)):
+def login_user(email: str, password: str, response:Response, db: Session = Depends(get_db)):
     user_obj = db.query(user_models.User).filter_by(email=email).first()
 
     if not user_obj or not verify_password(password, user_obj.password):
@@ -82,6 +90,13 @@ def login_user(email: str, password: str, db: Session = Depends(get_db)):
         data={"sub": str(user_obj.id)},
         expires_delta=timedelta(minutes=60)
     )
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,  # Set to True in production (HTTPS only)
+        samesite="lax"
+    )
 
     project_details = db.query(projects.ProjectDetail).filter_by(employee_id=user_obj.id).all()
 
@@ -92,23 +107,31 @@ def login_user(email: str, password: str, db: Session = Depends(get_db)):
         "access_token": access_token,
         "token_type": "bearer"
     }
+
+
+
 @router.get('/getAllUsers', response_model=user_schemas.AllUsers)
 def getusers(db: Session = Depends(get_db)):
-    # send_email(recipient_email="anuragsingh.bisen@ielektron.com" , status="pending" , description="Your account has been created")
     allUsers_obj = db.query(user_models.User).filter(
         (user_models.User.is_manager == False) & 
         (user_models.User.is_admin == False)
     ).all()
     
+
+
     if not allUsers_obj:
         raise HTTPException(status_code=404, detail="No users found")
     
     return {"allusers": allUsers_obj}
 
 
-
 @router.get("/manager", response_model=user_schemas.Managers)
-def get_managers(db: Session = Depends(get_db)):
+def get_managers(
+    current_user: user_models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not current_user:
+        raise HTTPException(status_code=403 , detail="no logged in  user  found . Please  login  to  perform  this   action")
     manage_obj = db.query(user_models.User).filter_by(is_manager=True).all()
     if not manage_obj:
         raise HTTPException(status_code=404, detail="No managers found")

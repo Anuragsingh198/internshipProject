@@ -2,8 +2,8 @@
 
 def html_description_user(admin: str, user: str, project: dict, manager: str):
     return f"""
-    <h2 style="color: #2e86de;">🎉 Project Assignment Notification</h2>
-    <p>Dear {user},</p>
+    <h2 style="color: #2e86de;">🎉Project Assignment Notification</h2>
+    <p> hey {user} 👋</p>
     <p>We’re pleased to inform you that <strong>your project has been approved</strong> by {admin}.</p>
 
     <h3>📄 Project Summary:</h3>

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status , Query
+from fastapi import APIRouter, Depends, HTTPException, status , Query , Request
 from sqlalchemy.orm import Session
 from core.database import SessionLocal
 from models import projects as project_models , users as users_model , roles as role_model
@@ -21,7 +21,14 @@ def get_db():
         db.close()
 
 @router.post("/addNewProject" , response_model=projects_schemas.AddProjectResponse)
-def create_new_project(payload: projects_schemas.AddNewProjects, db: Session = Depends(get_db)):
+def create_new_project( request: Request, payload: projects_schemas.AddNewProjects, db: Session = Depends(get_db)):
+     
+    admin_id = request.state.user_id
+    user = db.query(users_model.User).filter_by(id=admin_id).first()
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=403, detail="Only admin can add   the  project.")
+    
+
     users =  db.query(users_model.User).filter_by(users_model.User.id == payload.project_owner).first()
     if not users:
         raise HTTPException(status_code=404 , detail="assigned  manager  not  exists")

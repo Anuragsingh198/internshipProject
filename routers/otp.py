@@ -30,6 +30,7 @@ def generate_opt(request: OTPRequest, db: Session = Depends(get_db)):
     db.commit()
 
     # Send OTP email
+    
     send_email(
         recipient_email=request.email,
         description=f"Hi {request.email},\n\nYour OTP for email confirmation is: {otp_code}\n\nThank you!\nTeam Ielektron"

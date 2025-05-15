@@ -7,6 +7,7 @@ from models.projects import Project, ProjectDetail, ProjectHistory
 from models.roles import Role 
 from routers import users, project, roles 
 from routers import otp
+from auth.middleware import AuthMiddleware
 # from utils import data
 from models.otp import OTP
 
@@ -24,10 +25,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+
+
+app.add_middleware(AuthMiddleware)
 app.include_router(users.router)
 app.include_router(project.router)
 app.include_router(roles.router)
 app.include_router(otp.router)
+
+
+
+
 
 @app.get("/")
 def read_root():
