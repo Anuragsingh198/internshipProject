@@ -15,6 +15,7 @@ from utils.hash import hash_password , verify_password
 import random
 from math import ceil
 from auth.getCurrUser import get_current_user
+from sqlalchemy import asc
 from utils.email_templates import manager_request_user_assignment_template , html_description_manager ,user_account_created_template,  html_description_user , html_description_otp
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -202,7 +203,7 @@ def get_Approved_users(
     base_query = db.query(projects.ProjectDetail).filter(
         projects.ProjectDetail.manager_approved == True,
         projects.ProjectDetail.admin_approved == "Approved"
-    )
+    ).order_by(asc(projects.ProjectDetail.last_edited_on))
 
     if manageroradmin.is_manager:
         base_query = base_query.filter(projects.ProjectDetail.approved_manager == user_id)
@@ -277,7 +278,7 @@ def get_notApproved_users(
     base_query = db.query(projects.ProjectDetail).filter(
         projects.ProjectDetail.manager_approved == True,
         projects.ProjectDetail.admin_approved.in_(["Pending", "Rejected"])
-    )
+    ).order_by(asc(projects.ProjectDetail.last_edited_on))
 
     if user.is_manager:
         base_query = base_query.filter(projects.ProjectDetail.approved_manager == user_id)

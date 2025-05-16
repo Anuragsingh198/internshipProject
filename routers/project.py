@@ -11,7 +11,7 @@ from math import ceil
 from  typing import  Optional 
 from datetime import datetime
 from auth.getCurrUser import get_current_user
-
+from   sqlalchemy  import  asc
 router = APIRouter(prefix="/projects", tags=["Projects"])
 from utils.email_templates import  user_account_created_template , manager_request_user_assignment_template
 # from models.projects import ProjectDetailsStatusEnum , ProjectStatusEnum
@@ -78,12 +78,15 @@ def get_all_projects(
     total_page_count = ceil(total_count / limit)
 
     all_projects = db.query(
-        project_models.Project,
-        users_model.User.first_name,
-        users_model.User.last_name
-    ).join(
-        users_model.User, project_models.Project.project_owner == users_model.User.id
-    ).offset(offset).limit(limit).all()
+    project_models.Project,
+    users_model.User.first_name,
+    users_model.User.last_name
+).join(
+    users_model.User, project_models.Project.project_owner == users_model.User.id
+).order_by(
+    asc(project_models.Project.project_name)
+).offset(offset).limit(limit).all()
+
 
     if not all_projects:
         raise HTTPException(status_code=404, detail="Projects not found")
