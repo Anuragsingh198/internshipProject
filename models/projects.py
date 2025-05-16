@@ -40,7 +40,8 @@ class Project(Base):
 
     start_date = Column(Date)
     end_date = Column(Date)
-
+    edited_on = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    edited_by = Column(String)
     details = relationship("ProjectDetail", back_populates="project")
     history = relationship("ProjectHistory", back_populates="project")
 
@@ -68,6 +69,7 @@ class ProjectDetail(Base):
     role = relationship("Role")
     manageer = relationship("User", foreign_keys=[approved_manager])
     editor = relationship("User", foreign_keys=[last_edited_by])
+
 
 
 class ProjectHistory(Base):

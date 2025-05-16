@@ -12,10 +12,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         print(path)
         # Skip auth for login, signup, and docs
-        public_paths = ["/users/login", "/users/signup", "/docs", "/openapi.json", "/static"]
+        public_paths = ["/users/login", "/users/signup", "/docs", "/openapi.json", "/static" , "/otp/getotp" , "/otp/verifyotp"]
         if any(path.startswith(p) for p in public_paths):
             return await call_next(request)
-
         token = request.cookies.get("access_token")
         user_id = None
 

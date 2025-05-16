@@ -18,17 +18,16 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Project Management API")
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+CORSMiddleware,
+allow_origins="",
+allow_credentials=True,
+allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
+allow_headers=["Access-Control-Allow-Headers", 'Content-Type', 'Authorization', 'Access-Control-Allow-Origin'],
 )
 
 
 
-
-app.add_middleware(AuthMiddleware)
+# app.add_middleware(AuthMiddleware)
 app.include_router(users.router)
 app.include_router(project.router)
 app.include_router(roles.router)

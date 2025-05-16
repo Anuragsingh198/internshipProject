@@ -18,6 +18,8 @@ class ProjectOut(BaseModel):
     AF: bool
     EA: bool
     DI: bool
+    edited_by:str
+    edited_on:datetime
     start_date: Optional[date]
     end_date: Optional[date]
 
@@ -101,7 +103,6 @@ class AddNewProjects(BaseModel):
     DI: bool
     class Config:
         orm_mode = True
-
 class AddProjectResponse(BaseModel):
     message:str
 

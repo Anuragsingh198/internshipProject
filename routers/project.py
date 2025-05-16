@@ -44,6 +44,8 @@ def create_new_project( request: Request, payload: projects_schemas.AddNewProjec
         project_status=payload.project_status,
         start_date=payload.start_date,
         end_date=payload.end_date,
+        edited_by = f"{user.first_name} {user.last_name}",
+        edited_on=datetime.utcnow(),
         DA=payload.DA,
         AF=payload.AF,
         EA=payload.EA,
@@ -100,6 +102,8 @@ def get_all_projects(
             "AF": project.AF,
             "EA": project.EA,
             "DI": project.DI,
+            "edited_by":project.edited_by,
+            "edited_on":project.edited_on,
             "start_date": project.start_date,
             "end_date": project.end_date
         })
@@ -112,8 +116,6 @@ def get_all_projects(
             "per_page": limit
         }
     }
-
-
 
 @router.patch("/update/{detail_id}", response_model=projects_schemas.ProjectDetailsOut)
 def update_project_detail(
@@ -271,6 +273,8 @@ def update_project(project_id: UUID, payload: projects_schemas.ProjectUpdate,cur
                 start_date=project.start_date,
                 end_date=datetime.utcnow()
             )
+    project.edited_by = f"{current_user.first_name} {current_user.last_name}"
+    project.edited_on= datetime.utcnow()
     db.add(history)       
     db.commit()
     db.refresh(project)

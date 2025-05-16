@@ -96,7 +96,8 @@ def login_user(email: str, password: str, response:Response, db: Session = Depen
         value=access_token,
         httponly=True,
         secure=False,  # Set to True in production (HTTPS only)
-        samesite="lax"
+        samesite="lax",
+          path="/",
     )
 
     project_details = db.query(projects.ProjectDetail).filter_by(employee_id=user_obj.id).all()
@@ -263,7 +264,7 @@ def get_notApproved_users(
 ):
     if not current_user:
         raise HTTPException(status_code=403, detail="No Login User Found")
-    if not current_user.is_admin and not current_user.is_manager:
+    if  not  current_user.is_admin or current_user.is_manager:
         raise HTTPException(status_code=403, detail="Only Admin or Manager Can Perform This Action")
 
     user = db.query(user_models.User).filter(user_models.User.id == user_id).first()
