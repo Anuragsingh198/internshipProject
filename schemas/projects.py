@@ -6,6 +6,8 @@ from datetime import date, datetime
 from models.projects import ProjectStatusEnum , ProjectDetailsStatusEnum
 from enum import Enum
 
+
+
 class ProjectOut(BaseModel):
     project_id: UUID
     project_name: str
@@ -25,8 +27,6 @@ class ProjectOut(BaseModel):
 
     class Config:
         orm_mode = True
-
-
 
 
 class ProjectDetailsOut(BaseModel):
@@ -64,6 +64,10 @@ class AllProjectsOut(BaseModel):
     pagination:dict
     class Config:
         orm_mode = True
+class AllManagerProjects(BaseModel):
+    projects:List[ProjectOut]
+    class Config:
+        orm_mode =True
 
 class ProjectDetailUpdate(BaseModel):
     status: Optional[str]
